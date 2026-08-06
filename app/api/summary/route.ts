@@ -9,6 +9,6 @@ export async function GET(req: NextRequest) {
   if (!year) {
     return NextResponse.json({ error: "year is required" }, { status: 400 });
   }
-  const summary = getYearSummary(year);
+  const summary = await getYearSummary(year);
   return NextResponse.json(summary);
 }

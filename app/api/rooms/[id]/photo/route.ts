@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs/promises";
 import path from "path";
-import { UPLOAD_DIR, getRoomPhotoPath, setRoomPhoto } from "@/lib/db";
+import { getRoomPhotoPath, setRoomPhoto } from "@/lib/db";
+import { deletePhoto, savePhoto } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -14,14 +14,9 @@ const ALLOWED_TYPES: Record<string, string> = {
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB
 
 async function deleteExistingPhoto(roomId: number) {
-  const existing = getRoomPhotoPath(roomId);
+  const existing = await getRoomPhotoPath(roomId);
   if (!existing) return;
-  const filename = path.basename(existing);
-  try {
-    await fs.unlink(path.join(UPLOAD_DIR, filename));
-  } catch {
-    // ignore if file already missing
-  }
+  await deletePhoto(path.basename(existing));
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -45,10 +40,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const filename = `room-${roomId}-${Date.now()}.${ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
-  await fs.writeFile(path.join(UPLOAD_DIR, filename), buffer);
+  await savePhoto(filename, buffer);
 
   const photoUrl = `/api/uploads/${filename}`;
-  const room = setRoomPhoto(roomId, photoUrl);
+  const room = await setRoomPhoto(roomId, photoUrl);
   return NextResponse.json(room);
 }
 
@@ -56,6 +51,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params;
   const roomId = Number(id);
   await deleteExistingPhoto(roomId);
-  const room = setRoomPhoto(roomId, null);
+  const room = await setRoomPhoto(roomId, null);
   return NextResponse.json(room);
 }

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ClipboardList, NotebookPen, Settings2, Images } from "lucide-react";
 import { getMonthExpense, getMonthRecords, getRoomDetails, listRooms } from "@/lib/db";
 import { currentBEYear, currentMonth } from "@/lib/format";
-import { THAI_MONTHS } from "@/lib/types";
+import { MonthlyExpense, Room, RoomRecord, RoomWithItems, THAI_MONTHS } from "@/lib/types";
 import YearMonthPicker from "@/components/YearMonthPicker";
 import ManageClient from "@/components/ManageClient";
 import RoomSettingsClient from "@/components/RoomSettingsClient";
@@ -27,10 +27,18 @@ export default async function ManagePage({
   const month = Number(sp.month) || currentMonth();
   const tab = TABS.some((t) => t.key === sp.tab) ? (sp.tab as (typeof TABS)[number]["key"]) : "records";
 
-  const records = tab === "records" ? getMonthRecords(year, month) : null;
-  const expense = tab === "records" ? getMonthExpense(year, month) : null;
-  const rooms = tab === "rooms" ? listRooms(true) : null;
-  const roomDetails = tab === "details" ? getRoomDetails() : null;
+  let records: RoomRecord[] | null = null;
+  let expense: MonthlyExpense | null = null;
+  let rooms: Room[] | null = null;
+  let roomDetails: RoomWithItems[] | null = null;
+
+  if (tab === "records") {
+    [records, expense] = await Promise.all([getMonthRecords(year, month), getMonthExpense(year, month)]);
+  } else if (tab === "rooms") {
+    rooms = await listRooms(true);
+  } else if (tab === "details") {
+    roomDetails = await getRoomDetails();
+  }
 
   const tabLink = (t: string) => {
     const params = new URLSearchParams();

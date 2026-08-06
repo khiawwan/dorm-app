@@ -10,6 +10,6 @@ export async function GET(req: NextRequest) {
   if (!year || !month) {
     return NextResponse.json({ error: "year and month are required" }, { status: 400 });
   }
-  const expense = getMonthExpense(year, month);
+  const expense = await getMonthExpense(year, month);
   return NextResponse.json(expense);
 }

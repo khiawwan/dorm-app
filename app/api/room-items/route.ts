@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   if (!roomId) {
     return NextResponse.json({ error: "room_id is required" }, { status: 400 });
   }
-  const item = addRoomItem(roomId, {
+  const item = await addRoomItem(roomId, {
     name: body.name || "",
     quantity: body.quantity ?? 1,
     note: body.note ?? null,

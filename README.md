@@ -35,17 +35,16 @@ AUTH_SECRET=สตริงสุ่มยาวๆ_สำหรับเซ็�
 
 ## เทคโนโลยีที่ใช้
 
-- Next.js 16 (App Router) + TypeScript
-- SQLite ผ่านโมดูล `node:sqlite` ที่มากับ Node.js เอง (ไม่ต้องคอมไพล์ native module ใดๆ)
-  เก็บข้อมูลเป็นไฟล์เดียวที่ `data/dorm.db`
+- Next.js 16 (App Router) + TypeScript, deploy บน **Netlify** (ผ่าน `@netlify/plugin-nextjs`)
+- ฐานข้อมูล: [Turso](https://turso.tech) (libSQL แบบ hosted) ผ่าน `@libsql/client` — เลือกใช้เพราะ Netlify
+  เป็น serverless ไม่มี local disk ถาวร จึงเก็บ SQLite ไฟล์ในเครื่องแบบเดิมไม่ได้
+- รูปห้องที่อัปโหลด: เก็บผ่าน [Netlify Blobs](https://docs.netlify.com/blobs/overview/) เมื่อ deploy บน Netlify
+  (ตรวจจากตัวแปร `NETLIFY=true` ที่ Netlify ตั้งให้อัตโนมัติ) ส่วนตอนรันในเครื่อง (`npm run dev`) จะเก็บไฟล์ไว้ที่
+  `data/uploads/` แทน — ดู [`lib/storage.ts`](lib/storage.ts)
 - Tailwind CSS + ฟอนต์ [Prompt](https://fonts.google.com/specimen/Prompt) (โหลดผ่าน `next/font/google`)
 - ไอคอนจาก [lucide-react](https://lucide.dev/)
-- รูปห้องที่อัปโหลดเก็บเป็นไฟล์ที่ `data/uploads/` (โฟลเดอร์เดียวกับฐานข้อมูล ถูก volume เดียวกันคุ้มครองตอน deploy)
 
-> ต้องใช้ **Node.js เวอร์ชัน 22.5 ขึ้นไป** (แนะนำ Node.js 22 LTS รุ่นล่าสุด หรือ Node 24 ขึ้นไป)
-> เพราะใช้โมดูล `node:sqlite` ที่ enable โดย default ตั้งแต่ Node เวอร์ชันใหม่ๆ
-> ถ้าใช้ Node 22.5–22.11 (patch เก่า) แล้วเจอ error ว่า sqlite เป็น experimental
-> ให้รันด้วย `NODE_OPTIONS=--experimental-sqlite npm run dev` แทน หรืออัปเดต Node เป็นรุ่นล่าสุด
+> ต้องใช้ **Node.js เวอร์ชัน 18.18 ขึ้นไป** สำหรับพัฒนาในเครื่อง (แนะนำ Node 20/22 LTS)
 
 ## โครงสร้างข้อมูล
 
@@ -55,14 +54,15 @@ AUTH_SECRET=สตริงสุ่มยาวๆ_สำหรับเซ็�
 - `monthly_expenses` — ค่าใช้จ่ายรายเดือน (ค่าน้ำ/ไฟจริงที่จ่าย, ค่าเน็ตหอ/บ้าน, ค่าซ่อมบำรุง,
   ให้พ่อ, ให้แม่+พี่, อื่นๆ)
 - `room_items` — รายการของใช้ในแต่ละห้อง (ชื่อ, จำนวน) แสดงในแท็บ "รายละเอียดห้องพัก"
-- `rooms.photo_path` — path ของรูปห้อง (ถ้ามี) ชี้ไปยังไฟล์ใน `data/uploads/`
+- `rooms.photo_path` — URL ของรูปห้อง (ถ้ามี) เช่น `/api/uploads/room-3-169....jpg` — ตัวไฟล์จริง
+  เก็บแยกไว้ที่ Netlify Blobs (บน Netlify) หรือ `data/uploads/` (ตอนรันในเครื่อง) ไม่ได้เก็บในฐานข้อมูล
 
 เมื่อเปิดดูเดือนใหม่ที่ยังไม่มีข้อมูล ระบบจะสร้างแถวให้อัตโนมัติ โดยดึงเลขมิเตอร์ "หลัง"
 ของเดือนก่อนหน้ามาเป็นเลขมิเตอร์ "ก่อน" ของเดือนใหม่ให้เลย (เหมือนที่ทำในชีตเดิม)
 
 ## เริ่มต้นใช้งาน (พัฒนาในเครื่อง)
 
-1. ติดตั้ง [Node.js](https://nodejs.org/) เวอร์ชัน 22 LTS ขึ้นไป (หรือ Node 24 ขึ้นไป)
+1. ติดตั้ง [Node.js](https://nodejs.org/) เวอร์ชัน 18.18 ขึ้นไป
 2. ติดตั้ง dependencies:
 
 ```bash
@@ -77,121 +77,62 @@ npm run dev
 
 4. เปิดเบราว์เซอร์ไปที่ `http://localhost:3000`
 
-ข้อมูลจะถูกเก็บไว้ที่ `data/dorm.db` โดยอัตโนมัติ (สร้างตารางและห้อง 14 ห้องให้ตอนรันครั้งแรก)
+ถ้าไม่ได้ตั้งค่า `TURSO_DATABASE_URL` ไว้ แอปจะสร้างไฟล์ SQLite ในเครื่องที่ `data/dorm.db` ให้เองอัตโนมัติ
+(สร้างตารางและห้อง 14 ห้องให้ตอนรันครั้งแรก) — เหมาะสำหรับพัฒนา/ทดสอบในเครื่องโดยไม่ต้องพึ่ง Turso เลย
+รูปห้องที่อัปโหลดในโหมดนี้จะเก็บไว้ที่ `data/uploads/`
 
-## Deploy ขึ้นเซิร์ฟเวอร์/คลาวด์
+## Deploy ขึ้น Netlify
 
-แอปนี้ใช้ SQLite แบบไฟล์ (ผ่าน `node:sqlite`) จึงต้อง deploy บนแพลตฟอร์มที่มี **persistent disk/volume**
-(ดิสก์ที่ข้อมูลไม่หายเมื่อรีสตาร์ทหรือ deploy ใหม่) เช่น Railway, VPS ทั่วไป, Render (แบบมี disk), Fly.io (พร้อม volume)
-**ไม่แนะนำ Vercel** เพราะเป็น serverless ไฟล์ระบบเป็นแบบชั่วคราว ข้อมูลจะหายเมื่อ deploy ใหม่
+แอปนี้ deploy บน [Netlify](https://netlify.com) โดยใช้ [Turso](https://turso.tech) เป็นฐานข้อมูล (แทน SQLite
+ไฟล์ในเครื่อง เพราะ Netlify เป็น serverless ไม่มี disk ถาวร) และ Netlify Blobs สำหรับเก็บรูปห้อง
 
-สำหรับผู้ใช้งานจำนวนน้อย (~4-5 คน) แอปนี้ใช้ทรัพยากรน้อยมาก เครื่องที่มี RAM 512MB-1GB ก็เพียงพอ
+### 1. สร้างฐานข้อมูล Turso
 
-### วิธีที่ 1: Render (สำหรับคนที่มีบัญชี Render + code บน GitHub อยู่แล้ว)
-
-โค้ดพร้อม deploy ด้วยไฟล์ [`render.yaml`](render.yaml) ที่เตรียมไว้ให้แล้ว (Render เรียกว่า "Blueprint")
-
-**สำคัญ:** Render **free tier ไม่รองรับ persistent disk** — ถ้าใช้ free tier ข้อมูลจะหายทุกครั้งที่
-redeploy หรือ container restart ต้องใช้แผน **Starter (~$7/เดือน)** ขึ้นไปถึงจะแนบ disk ถาวรได้
-(`render.yaml` ตั้งค่า `plan: starter` ไว้ให้แล้ว)
-
-1. push โค้ดล่าสุด (รวมไฟล์ `Dockerfile`, `.dockerignore`, `render.yaml` ที่เพิ่งเตรียมให้) ขึ้น GitHub:
-   ```bash
-   git add -A
-   git commit -m "Prepare Render deployment config"
-   git push
-   ```
-2. ที่ Render Dashboard → **New +** → **Blueprint**
-3. เลือก repo `dorm-app` จาก GitHub ที่เชื่อมไว้ — Render จะอ่าน `render.yaml` แล้วตั้งค่า
-   Web Service + Disk (mount ที่ `/app/data`) ให้อัตโนมัติ
-4. ระหว่างสร้าง Render จะถามค่า environment variables ที่ทำเครื่องหมาย `sync: false` ไว้ ให้กรอก:
-   ```
-   ADMIN_USERNAME=admin
-   ADMIN_PASSWORD=รหัสผ่านใหม่ที่คาดเดายาก
-   AUTH_SECRET=สตริงสุ่มยาวๆ
-   ```
-5. กด **Apply** — Render จะ build จาก `Dockerfile` และ deploy ให้ ได้ URL แบบ
-   `https://dorm-app-xxxx.onrender.com` พร้อม HTTPS ให้ทันที
-
-ถ้าไม่อยากใช้ Blueprint ก็สร้างเองผ่าน **New +** → **Web Service** → เลือก repo → Runtime เลือก
-**Docker** → เพิ่ม Disk (มี Advanced settings ตอนสร้าง หรือเพิ่มทีหลังในแท็บ **Disks**) mount path
-`/app/data`, size 1GB → ตั้ง environment variables เหมือนข้างบนในแท็บ **Environment**
-
-หลังตั้งค่าเสร็จ ทุกครั้งที่ `git push` ขึ้น branch หลัก Render จะ auto-deploy ให้ใหม่เอง
-(ข้อมูลใน disk ไม่หาย เพราะแยกจากตัว container)
-
-### วิธีที่ 2: Railway (ทางเลือกอื่น — ยังไม่มีเซิร์ฟเวอร์ของตัวเอง)
-
-[Railway](https://railway.app) เป็นแพลตฟอร์ม deploy ที่ตั้งค่าง่าย มี persistent volume, HTTPS
-และโดเมนให้ในตัว เหมาะกับแอปขนาดเล็กแบบนี้ ค่าใช้จ่ายประมาณ **$5/เดือน** (แผน Hobby รวม usage credit ในตัว)
-
-1. สมัครบัญชีที่ [railway.app](https://railway.app) (ใช้ GitHub หรืออีเมลสมัครได้)
-2. ติดตั้ง Railway CLI:
-   ```bash
-   npm install -g @railway/cli
-   ```
-3. ล็อกอิน (จะเปิดเบราว์เซอร์ให้ยืนยันตัวตน):
-   ```bash
-   railway login
-   ```
-4. ที่โฟลเดอร์ `dorm-app` สร้างโปรเจกต์ใหม่บน Railway:
-   ```bash
-   railway init
-   ```
-5. Deploy โค้ด (Railway จะ build จาก `Dockerfile` ที่เตรียมไว้ให้อัตโนมัติ):
-   ```bash
-   railway up
-   ```
-6. เพิ่ม **Volume** สำหรับเก็บฐานข้อมูลถาวร — ไปที่ Railway Dashboard เลือกโปรเจกต์ที่สร้าง →
-   service ของแอป → แท็บ **Volumes** → New Volume → mount path ใส่ `/app/data`
-   (ถ้าไม่ทำขั้นตอนนี้ ข้อมูลจะหายทุกครั้งที่ deploy ใหม่)
-7. ตั้งค่า environment variables ที่แท็บ **Variables** (ดูหัวข้อ "การเข้าสู่ระบบ" ด้านบน):
-   ```
-   ADMIN_USERNAME=admin
-   ADMIN_PASSWORD=รหัสผ่านใหม่ที่คาดเดายาก
-   AUTH_SECRET=สตริงสุ่มยาวๆ
-   ```
-8. เปิดโดเมนสาธารณะ — แท็บ **Settings** → **Networking** → **Generate Domain**
-   จะได้ URL แบบ `https://xxxx.up.railway.app` พร้อม HTTPS ให้ทันที
-
-หลังตั้งค่าเสร็จ ครั้งต่อไปที่แก้โค้ดแล้วอยากอัปเดต ให้รัน `railway up` ซ้ำได้เลย
-(ข้อมูลใน volume จะไม่หาย เพราะแยกจากตัว container)
-
-### วิธีที่ 3: ใช้ Docker บน VPS ของตัวเอง
-
-ถ้ามี VPS อยู่แล้ว (DigitalOcean, Hetzner, Vultr ฯลฯ):
+Turso มี free tier ที่เพียงพอมากสำหรับแอปขนาดนี้ (500 ฐานข้อมูล, พื้นที่รวม 9GB)
 
 ```bash
-docker compose up -d --build
+# ติดตั้ง Turso CLI (Windows ใช้ผ่าน WSL หรือดูวิธีติดตั้งที่ docs.turso.tech)
+curl -sSfL https://get.tur.so/install.sh | bash
+
+turso auth signup   # หรือ turso auth login ถ้ามีบัญชีแล้ว
+turso db create dorm-app
+turso db show dorm-app --url          # ได้ TURSO_DATABASE_URL
+turso db tokens create dorm-app       # ได้ TURSO_AUTH_TOKEN
 ```
 
-จะรันแอปที่พอร์ต 3000 และเก็บฐานข้อมูลไว้ใน Docker volume ชื่อ `dorm-data`
-(ข้อมูลจะไม่หายแม้ลบ container แล้วสร้างใหม่) — อย่าลืมแก้ `ADMIN_PASSWORD` และ `AUTH_SECRET`
-ใน `docker-compose.yml` ก่อน deploy จริง
+### 2. ตั้งค่า environment variables บน Netlify
 
-ตั้งค่า reverse proxy (เช่น Nginx, Caddy) พร้อม HTTPS ต่อหน้าพอร์ต 3000 เสมอเมื่อ deploy ขึ้นสาธารณะ
-(แอปมีระบบล็อกอินในตัวแล้ว แต่รหัสผ่านจะถูกส่งผ่านเครือข่ายจริง ต้องมี HTTPS ป้องกันการดักฟัง)
+ที่ Netlify Dashboard → เลือกไซต์ → **Site configuration** → **Environment variables** → เพิ่ม:
 
-### วิธีที่ 4: รันตรงบน VPS ด้วย Node.js (ไม่ใช้ Docker)
-
-```bash
-npm install
-npm run build
-DB_PATH=/path/to/persistent/dorm.db npm start
+```
+TURSO_DATABASE_URL=libsql://xxxx.turso.io
+TURSO_AUTH_TOKEN=ey...
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=รหัสผ่านใหม่ที่คาดเดายาก
+AUTH_SECRET=สตริงสุ่มยาวๆ_สำหรับเซ็นชื่อ_session_cookie
 ```
 
-แนะนำให้ใช้ [pm2](https://pm2.keymetrics.io/) หรือ systemd เพื่อให้แอปรันค้างและ restart อัตโนมัติ
+(ดูหัวข้อ "การเข้าสู่ระบบ" ด้านบนสำหรับความหมายของ `ADMIN_USERNAME`/`ADMIN_PASSWORD`/`AUTH_SECRET`
+ส่วน `NETLIFY=true` และตัวแปร Netlify Blobs อื่นๆ Netlify ตั้งให้อัตโนมัติ ไม่ต้องเพิ่มเอง)
+
+### 3. เชื่อม repo และ deploy
+
+1. Netlify Dashboard → **Add new site** → **Import an existing project**
+2. เลือก GitHub แล้วเลือก repo `dorm-app`
+3. Netlify จะอ่าน [`netlify.toml`](netlify.toml) ที่เตรียมไว้แล้ว (ใช้ `@netlify/plugin-nextjs` อัตโนมัติ)
+   ไม่ต้องแก้ build command/publish directory เอง
+4. ตั้งค่า environment variables ตามขั้นตอนที่ 2 ก่อนกด deploy ครั้งแรก (หรือเพิ่มทีหลังแล้ว **Trigger deploy** ใหม่)
+5. กด **Deploy** — จะได้ URL แบบ `https://xxxx.netlify.app` พร้อม HTTPS ให้ทันที
+
+หลังตั้งค่าเสร็จ ทุกครั้งที่ `git push` ขึ้น branch หลัก Netlify จะ build และ deploy ให้ใหม่อัตโนมัติ
 
 ### สำรองข้อมูล (Backup)
 
-ฐานข้อมูลทั้งหมดอยู่ในไฟล์เดียว คัดลอกไฟล์นี้ (และโฟลเดอร์ `data/uploads/` ถ้ามีรูปห้อง) เพื่อสำรองข้อมูล:
-
 ```bash
-cp data/dorm.db backup/dorm-$(date +%Y%m%d).db
-cp -r data/uploads backup/uploads-$(date +%Y%m%d)
+turso db shell dorm-app ".dump" > backup/dorm-$(date +%Y%m%d).sql
 ```
 
-(ถ้าใช้ Docker ให้ `docker compose exec dorm-app` หรือ mount volume ออกมาคัดลอก)
+รูปห้องที่อัปโหลดอยู่ใน Netlify Blobs ดาวน์โหลด/จัดการผ่าน Netlify CLI ได้ (`netlify blobs:list`, `netlify blobs:get`)
 
 ## หมายเหตุเรื่องปี
 

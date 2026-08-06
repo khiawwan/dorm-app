@@ -21,9 +21,11 @@ export default async function DashboardPage({
   const year = Number(sp.year) || currentBEYear();
   const month = Number(sp.month) || currentMonth();
 
-  const monthSummary = getMonthSummary(year, month);
-  const yearSummary = getYearSummary(year);
-  const records = getMonthRecords(year, month);
+  const [monthSummary, yearSummary, records] = await Promise.all([
+    getMonthSummary(year, month),
+    getYearSummary(year),
+    getMonthRecords(year, month),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
