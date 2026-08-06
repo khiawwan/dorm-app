@@ -81,24 +81,98 @@ npm run dev
 
 ## Deploy ขึ้นเซิร์ฟเวอร์/คลาวด์
 
-แอปนี้ใช้ SQLite แบบไฟล์ (ผ่าน `node:sqlite`) จึงต้อง deploy บนแพลตฟอร์มที่มี **persistent disk**
-(ดิสก์ที่ข้อมูลไม่หายเมื่อรีสตาร์ท) เช่น VPS ทั่วไป, Railway, Render, Fly.io (พร้อม volume)
+แอปนี้ใช้ SQLite แบบไฟล์ (ผ่าน `node:sqlite`) จึงต้อง deploy บนแพลตฟอร์มที่มี **persistent disk/volume**
+(ดิสก์ที่ข้อมูลไม่หายเมื่อรีสตาร์ทหรือ deploy ใหม่) เช่น Railway, VPS ทั่วไป, Render (แบบมี disk), Fly.io (พร้อม volume)
 **ไม่แนะนำ Vercel** เพราะเป็น serverless ไฟล์ระบบเป็นแบบชั่วคราว ข้อมูลจะหายเมื่อ deploy ใหม่
 
-### วิธีที่ 1: ใช้ Docker (แนะนำ)
+สำหรับผู้ใช้งานจำนวนน้อย (~4-5 คน) แอปนี้ใช้ทรัพยากรน้อยมาก เครื่องที่มี RAM 512MB-1GB ก็เพียงพอ
+
+### วิธีที่ 1: Render (สำหรับคนที่มีบัญชี Render + code บน GitHub อยู่แล้ว)
+
+โค้ดพร้อม deploy ด้วยไฟล์ [`render.yaml`](render.yaml) ที่เตรียมไว้ให้แล้ว (Render เรียกว่า "Blueprint")
+
+**สำคัญ:** Render **free tier ไม่รองรับ persistent disk** — ถ้าใช้ free tier ข้อมูลจะหายทุกครั้งที่
+redeploy หรือ container restart ต้องใช้แผน **Starter (~$7/เดือน)** ขึ้นไปถึงจะแนบ disk ถาวรได้
+(`render.yaml` ตั้งค่า `plan: starter` ไว้ให้แล้ว)
+
+1. push โค้ดล่าสุด (รวมไฟล์ `Dockerfile`, `.dockerignore`, `render.yaml` ที่เพิ่งเตรียมให้) ขึ้น GitHub:
+   ```bash
+   git add -A
+   git commit -m "Prepare Render deployment config"
+   git push
+   ```
+2. ที่ Render Dashboard → **New +** → **Blueprint**
+3. เลือก repo `dorm-app` จาก GitHub ที่เชื่อมไว้ — Render จะอ่าน `render.yaml` แล้วตั้งค่า
+   Web Service + Disk (mount ที่ `/app/data`) ให้อัตโนมัติ
+4. ระหว่างสร้าง Render จะถามค่า environment variables ที่ทำเครื่องหมาย `sync: false` ไว้ ให้กรอก:
+   ```
+   ADMIN_USERNAME=admin
+   ADMIN_PASSWORD=รหัสผ่านใหม่ที่คาดเดายาก
+   AUTH_SECRET=สตริงสุ่มยาวๆ
+   ```
+5. กด **Apply** — Render จะ build จาก `Dockerfile` และ deploy ให้ ได้ URL แบบ
+   `https://dorm-app-xxxx.onrender.com` พร้อม HTTPS ให้ทันที
+
+ถ้าไม่อยากใช้ Blueprint ก็สร้างเองผ่าน **New +** → **Web Service** → เลือก repo → Runtime เลือก
+**Docker** → เพิ่ม Disk (มี Advanced settings ตอนสร้าง หรือเพิ่มทีหลังในแท็บ **Disks**) mount path
+`/app/data`, size 1GB → ตั้ง environment variables เหมือนข้างบนในแท็บ **Environment**
+
+หลังตั้งค่าเสร็จ ทุกครั้งที่ `git push` ขึ้น branch หลัก Render จะ auto-deploy ให้ใหม่เอง
+(ข้อมูลใน disk ไม่หาย เพราะแยกจากตัว container)
+
+### วิธีที่ 2: Railway (ทางเลือกอื่น — ยังไม่มีเซิร์ฟเวอร์ของตัวเอง)
+
+[Railway](https://railway.app) เป็นแพลตฟอร์ม deploy ที่ตั้งค่าง่าย มี persistent volume, HTTPS
+และโดเมนให้ในตัว เหมาะกับแอปขนาดเล็กแบบนี้ ค่าใช้จ่ายประมาณ **$5/เดือน** (แผน Hobby รวม usage credit ในตัว)
+
+1. สมัครบัญชีที่ [railway.app](https://railway.app) (ใช้ GitHub หรืออีเมลสมัครได้)
+2. ติดตั้ง Railway CLI:
+   ```bash
+   npm install -g @railway/cli
+   ```
+3. ล็อกอิน (จะเปิดเบราว์เซอร์ให้ยืนยันตัวตน):
+   ```bash
+   railway login
+   ```
+4. ที่โฟลเดอร์ `dorm-app` สร้างโปรเจกต์ใหม่บน Railway:
+   ```bash
+   railway init
+   ```
+5. Deploy โค้ด (Railway จะ build จาก `Dockerfile` ที่เตรียมไว้ให้อัตโนมัติ):
+   ```bash
+   railway up
+   ```
+6. เพิ่ม **Volume** สำหรับเก็บฐานข้อมูลถาวร — ไปที่ Railway Dashboard เลือกโปรเจกต์ที่สร้าง →
+   service ของแอป → แท็บ **Volumes** → New Volume → mount path ใส่ `/app/data`
+   (ถ้าไม่ทำขั้นตอนนี้ ข้อมูลจะหายทุกครั้งที่ deploy ใหม่)
+7. ตั้งค่า environment variables ที่แท็บ **Variables** (ดูหัวข้อ "การเข้าสู่ระบบ" ด้านบน):
+   ```
+   ADMIN_USERNAME=admin
+   ADMIN_PASSWORD=รหัสผ่านใหม่ที่คาดเดายาก
+   AUTH_SECRET=สตริงสุ่มยาวๆ
+   ```
+8. เปิดโดเมนสาธารณะ — แท็บ **Settings** → **Networking** → **Generate Domain**
+   จะได้ URL แบบ `https://xxxx.up.railway.app` พร้อม HTTPS ให้ทันที
+
+หลังตั้งค่าเสร็จ ครั้งต่อไปที่แก้โค้ดแล้วอยากอัปเดต ให้รัน `railway up` ซ้ำได้เลย
+(ข้อมูลใน volume จะไม่หาย เพราะแยกจากตัว container)
+
+### วิธีที่ 3: ใช้ Docker บน VPS ของตัวเอง
+
+ถ้ามี VPS อยู่แล้ว (DigitalOcean, Hetzner, Vultr ฯลฯ):
 
 ```bash
 docker compose up -d --build
 ```
 
 จะรันแอปที่พอร์ต 3000 และเก็บฐานข้อมูลไว้ใน Docker volume ชื่อ `dorm-data`
-(ข้อมูลจะไม่หายแม้ลบ container แล้วสร้างใหม่)
+(ข้อมูลจะไม่หายแม้ลบ container แล้วสร้างใหม่) — อย่าลืมแก้ `ADMIN_PASSWORD` และ `AUTH_SECRET`
+ใน `docker-compose.yml` ก่อน deploy จริง
 
 ตั้งค่า reverse proxy (เช่น Nginx, Caddy) พร้อม HTTPS ต่อหน้าพอร์ต 3000 เสมอเมื่อ deploy ขึ้นสาธารณะ
 (แอปมีระบบล็อกอินในตัวแล้ว แต่รหัสผ่านจะถูกส่งผ่านเครือข่ายจริง ต้องมี HTTPS ป้องกันการดักฟัง)
-อย่าลืมตั้งค่า `ADMIN_PASSWORD` และ `AUTH_SECRET` ผ่าน environment variables ตามหัวข้อ "การเข้าสู่ระบบ" ด้านบน
 
-### วิธีที่ 2: รันตรงบน VPS ด้วย Node.js
+### วิธีที่ 4: รันตรงบน VPS ด้วย Node.js (ไม่ใช้ Docker)
 
 ```bash
 npm install

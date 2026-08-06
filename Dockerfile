@@ -2,8 +2,8 @@ FROM node:24-bookworm-slim AS base
 
 FROM base AS deps
 WORKDIR /app
-COPY package.json ./
-RUN npm install
+COPY package.json package-lock.json ./
+RUN npm ci
 
 FROM base AS builder
 WORKDIR /app

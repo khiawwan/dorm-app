@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: dorm-app
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /
+    envVars:
+      - key: DB_PATH
+        value: /app/data/dorm.db
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: AUTH_SECRET
+        sync: false
+    disk:
+      name: dorm-data
+      mountPath: /app/data
+      sizeGB: 1
