@@ -1,8 +1,11 @@
-import { getMonthExpense, getMonthRecords } from "./db";
+import { getMonthExpenseReadOnly, getMonthRecordsReadOnly } from "./db";
 import { elecCost, expenseTotal, MonthSummary, recordTotal, waterCost } from "./types";
 
 export async function getMonthSummary(year: number, month: number): Promise<MonthSummary> {
-  const [records, expense] = await Promise.all([getMonthRecords(year, month), getMonthExpense(year, month)]);
+  const [records, expense] = await Promise.all([
+    getMonthRecordsReadOnly(year, month),
+    getMonthExpenseReadOnly(year, month),
+  ]);
 
   let total_rent = 0;
   let total_elec = 0;
@@ -24,7 +27,7 @@ export async function getMonthSummary(year: number, month: number): Promise<Mont
     }
   }
 
-  const total_expense = expenseTotal(expense);
+  const total_expense = expense ? expenseTotal(expense) : 0;
 
   return {
     year,

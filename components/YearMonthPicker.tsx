@@ -1,7 +1,10 @@
 "use client";
 
 import { useRouter, usePathname } from "next/navigation";
+import { currentBEYear } from "@/lib/format";
 import { THAI_MONTHS } from "@/lib/types";
+
+const MAX_YEAR = 2580;
 
 export default function YearMonthPicker({
   year,
@@ -22,7 +25,9 @@ export default function YearMonthPicker({
     router.push(`${pathname}?${params.toString()}`);
   }
 
-  const years = Array.from({ length: 6 }, (_, i) => year - 3 + i);
+  const startYear = Math.min(currentBEYear() - 5, year);
+  const endYear = Math.max(MAX_YEAR, year);
+  const years = Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i);
 
   return (
     <div className="flex flex-wrap items-center gap-2">

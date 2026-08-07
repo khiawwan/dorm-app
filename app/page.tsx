@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { LayoutDashboard, DoorOpen, BarChart3, Table2, ArrowRight } from "lucide-react";
-import { getMonthRecords } from "@/lib/db";
+import { getMonthRecordsReadOnly, listRooms } from "@/lib/db";
 import { getMonthSummary, getYearSummary } from "@/lib/summary";
 import { currentBEYear, currentMonth } from "@/lib/format";
 import { THAI_MONTHS } from "@/lib/types";
@@ -21,10 +21,11 @@ export default async function DashboardPage({
   const year = Number(sp.year) || currentBEYear();
   const month = Number(sp.month) || currentMonth();
 
-  const [monthSummary, yearSummary, records] = await Promise.all([
+  const [monthSummary, yearSummary, records, rooms] = await Promise.all([
     getMonthSummary(year, month),
     getYearSummary(year),
-    getMonthRecords(year, month),
+    getMonthRecordsReadOnly(year, month),
+    listRooms(false),
   ]);
 
   return (
@@ -60,7 +61,7 @@ export default async function DashboardPage({
           <DoorOpen className="h-5 w-5 text-brand-600" strokeWidth={2.25} />
           สถานะห้องพัก เดือน{THAI_MONTHS[month - 1]}
         </h2>
-        <RoomStatusGrid records={records} />
+        <RoomStatusGrid rooms={rooms} records={records} />
       </section>
 
       <section className="rounded-xl2 border border-brand-100 bg-white p-4 shadow-soft">

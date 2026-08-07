@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getMonthRecords } from "@/lib/db";
+import { getMonthRecordsReadOnly } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +10,6 @@ export async function GET(req: NextRequest) {
   if (!year || !month) {
     return NextResponse.json({ error: "year and month are required" }, { status: 400 });
   }
-  const records = await getMonthRecords(year, month);
+  const records = await getMonthRecordsReadOnly(year, month);
   return NextResponse.json(records);
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Zap, Droplets, Receipt, Wallet, PiggyBank, TableProperties } from "lucide-react";
+import { Zap, Droplets, Receipt, Wallet, PiggyBank, TableProperties, History } from "lucide-react";
 import { baht } from "@/lib/format";
 import {
   elecCost,
@@ -42,6 +42,7 @@ export default function ManageClient({
   const [expense, setExpense] = useState<MonthlyExpense>(initialExpense);
   const [saveState, setSaveState] = useState<Record<string, SaveState>>({});
   const [bulkRate, setBulkRate] = useState({ elec: 7, water: 22 });
+  const [applyingLastMonth, setApplyingLastMonth] = useState(false);
   const debounced = useDebouncedSave();
 
   const totals = useMemo(() => {
@@ -109,6 +110,43 @@ export default function ManageClient({
     });
   }
 
+  async function applyLastMonth() {
+    let prevYear = year;
+    let prevMonth = month - 1;
+    if (prevMonth < 1) {
+      prevMonth = 12;
+      prevYear -= 1;
+    }
+    setApplyingLastMonth(true);
+    try {
+      const res = await fetch(`/api/records?year=${prevYear}&month=${prevMonth}`);
+      if (!res.ok) return;
+      const prevRecords: RoomRecord[] = await res.json();
+      if (prevRecords.length === 0) {
+        alert("ไม่พบข้อมูลของเดือนก่อนหน้า");
+        return;
+      }
+      const byRoomId = new Map(prevRecords.map((r) => [r.room_id, r]));
+      setRecords((prev) => {
+        const next = prev.map((r) => {
+          const prevRec = byRoomId.get(r.room_id);
+          if (!prevRec) return r;
+          const updated: RoomRecord = {
+            ...r,
+            rent: prevRec.rent,
+            elec_before: prevRec.elec_after,
+            water_before: prevRec.water_after,
+          };
+          debounced(`record-${r.id}`, () => saveRecord(updated), 100);
+          return updated;
+        });
+        return next;
+      });
+    } finally {
+      setApplyingLastMonth(false);
+    }
+  }
+
   function saveExpense(next: MonthlyExpense) {
     const key = "expense";
     markSaving(key);
@@ -153,6 +191,14 @@ export default function ManageClient({
           <p className="text-xs text-gray-500">แก้ไขค่าในตารางแล้วระบบจะบันทึกให้อัตโนมัติ</p>
         </div>
         <div className="flex items-end gap-2">
+          <button
+            onClick={applyLastMonth}
+            disabled={applyingLastMonth}
+            className="flex items-center gap-1.5 rounded-xl2 border border-brand-200 bg-white px-3 py-1.5 text-sm font-medium text-brand-700 shadow-sm transition hover:bg-brand-50 disabled:opacity-60"
+          >
+            <History className="h-4 w-4" strokeWidth={2.25} />
+            {applyingLastMonth ? "กำลังดึงข้อมูล…" : "ใช้ข้อมูลเดือนที่แล้ว"}
+          </button>
           <label className="text-xs text-gray-600">
             <span className="flex items-center gap-1">
               <Zap className="h-3.5 w-3.5 text-amber-500" /> ค่าไฟ/หน่วย

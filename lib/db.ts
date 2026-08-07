@@ -267,6 +267,22 @@ export async function getMonthRecords(year: number, month: number): Promise<Room
   return rowsToObjects<RoomRecord>(result);
 }
 
+// Like getMonthRecords, but never creates rows — used by the dashboard so that
+// simply viewing/browsing a month doesn't leave behind placeholder records.
+// Months nobody has opened in "จัดการข้อมูล" yet just come back empty.
+export async function getMonthRecordsReadOnly(year: number, month: number): Promise<RoomRecord[]> {
+  await ready();
+  const result = await client.execute({
+    sql: `SELECT mr.*, r.code as room_code, r.floor as room_floor, r.is_owner as is_owner, r.active as active
+          FROM monthly_records mr
+          JOIN rooms r ON r.id = mr.room_id
+          WHERE mr.year = ? AND mr.month = ?
+          ORDER BY r.sort_order ASC`,
+    args: [year, month],
+  });
+  return rowsToObjects<RoomRecord>(result);
+}
+
 export async function updateRecord(id: number, patch: Partial<MonthlyRecord>): Promise<MonthlyRecord> {
   await ready();
   const currentResult = await client.execute({ sql: "SELECT * FROM monthly_records WHERE id = ?", args: [id] });
@@ -306,6 +322,17 @@ export async function getMonthExpense(year: number, month: number): Promise<Mont
     sql: "SELECT * FROM monthly_expenses WHERE year=? AND month=?",
     args: [year, month],
   });
+  return rowToObject<MonthlyExpense>(result.rows[0], result.columns);
+}
+
+// Like getMonthExpense, but never creates a row — used by the dashboard.
+export async function getMonthExpenseReadOnly(year: number, month: number): Promise<MonthlyExpense | null> {
+  await ready();
+  const result = await client.execute({
+    sql: "SELECT * FROM monthly_expenses WHERE year=? AND month=?",
+    args: [year, month],
+  });
+  if (result.rows.length === 0) return null;
   return rowToObject<MonthlyExpense>(result.rows[0], result.columns);
 }
 
