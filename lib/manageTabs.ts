@@ -9,7 +9,7 @@ export interface ManageTab {
 export const MANAGE_TABS: ManageTab[] = [
   { key: "tenants", label: "ข้อมูลผู้เช่า", icon: Users },
   { key: "records", label: "บันทึกรายเดือน", icon: NotebookPen },
-  { key: "rooms", label: "ตั้งค่าห้องพัก", icon: Settings2 },
+  { key: "rooms", label: "สถานะห้องพัก", icon: Settings2 },
   { key: "details", label: "รายละเอียดห้องพัก", icon: Images },
   { key: "invoice", label: "ใบแจ้งค่าเช่า", icon: Receipt },
 ];
