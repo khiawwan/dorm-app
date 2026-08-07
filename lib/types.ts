@@ -45,6 +45,13 @@ export interface RoomWithTenant extends Room {
   tenant: Tenant;
 }
 
+export interface InvoiceSettings {
+  id: number;
+  address: string | null;
+  footer_note: string | null;
+  qr_path: string | null;
+}
+
 export interface MonthlyRecord {
   id: number;
   room_id: number;

@@ -2,6 +2,7 @@ import { createClient, type Client, type Row } from "@libsql/client";
 import fs from "fs";
 import path from "path";
 import type {
+  InvoiceSettings,
   MonthlyExpense,
   MonthlyRecord,
   PaymentStatus,
@@ -87,6 +88,12 @@ async function init(): Promise<void> {
         payment_date TEXT,
         note TEXT,
         UNIQUE(room_id, year, month)
+      )`,
+      `CREATE TABLE IF NOT EXISTS invoice_settings (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        address TEXT,
+        footer_note TEXT,
+        qr_path TEXT
       )`,
       `CREATE TABLE IF NOT EXISTS monthly_expenses (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -506,6 +513,42 @@ export async function updateTenant(id: number, patch: Partial<Tenant>): Promise<
   });
   const result = await client.execute({ sql: "SELECT * FROM tenants WHERE id = ?", args: [id] });
   return rowToObject<Tenant>(result.rows[0], result.columns);
+}
+
+// ---------- Invoice settings (dorm address + printable footer note + QR) ----------
+
+export async function getInvoiceSettings(): Promise<InvoiceSettings> {
+  await ready();
+  await client.execute(
+    "INSERT OR IGNORE INTO invoice_settings (id, address, footer_note, qr_path) VALUES (1, NULL, NULL, NULL)"
+  );
+  const result = await client.execute("SELECT * FROM invoice_settings WHERE id = 1");
+  return rowToObject<InvoiceSettings>(result.rows[0], result.columns);
+}
+
+export async function updateInvoiceSettings(patch: {
+  address?: string | null;
+  footer_note?: string | null;
+}): Promise<InvoiceSettings> {
+  const current = await getInvoiceSettings();
+  const next = { ...current, ...patch };
+  await client.execute({
+    sql: "UPDATE invoice_settings SET address=@address, footer_note=@footer_note WHERE id=1",
+    args: { address: next.address, footer_note: next.footer_note },
+  });
+  return getInvoiceSettings();
+}
+
+export async function setInvoiceQr(qrPath: string | null): Promise<InvoiceSettings> {
+  await ready();
+  await getInvoiceSettings();
+  await client.execute({ sql: "UPDATE invoice_settings SET qr_path = ? WHERE id = 1", args: [qrPath] });
+  return getInvoiceSettings();
+}
+
+export async function getInvoiceQrPath(): Promise<string | null> {
+  const settings = await getInvoiceSettings();
+  return settings.qr_path;
 }
 
 export type { PaymentStatus };

@@ -1,7 +1,24 @@
 import { ClipboardList } from "lucide-react";
-import { getMonthExpense, getMonthRecords, getMonthRecordsReadOnly, getRoomDetails, getTenants, listRooms } from "@/lib/db";
+import {
+  getInvoiceSettings,
+  getMonthExpense,
+  getMonthRecords,
+  getMonthRecordsReadOnly,
+  getRoomDetails,
+  getTenants,
+  listRooms,
+} from "@/lib/db";
 import { currentBEYear, currentMonth } from "@/lib/format";
-import { MonthlyExpense, Room, RoomRecord, RoomWithItems, RoomWithTenant, Tenant, THAI_MONTHS } from "@/lib/types";
+import {
+  InvoiceSettings,
+  MonthlyExpense,
+  Room,
+  RoomRecord,
+  RoomWithItems,
+  RoomWithTenant,
+  Tenant,
+  THAI_MONTHS,
+} from "@/lib/types";
 import { DEFAULT_MANAGE_TAB, MANAGE_TABS } from "@/lib/manageTabs";
 import YearMonthPicker from "@/components/YearMonthPicker";
 import ManageClient from "@/components/ManageClient";
@@ -31,6 +48,7 @@ export default async function ManagePage({
   let roomDetails: RoomWithItems[] | null = null;
   let invoiceRooms: Room[] | null = null;
   let invoiceTenants: Tenant[] | null = null;
+  let invoiceSettings: InvoiceSettings | null = null;
 
   if (tab === "tenants") {
     tenants = await getTenants();
@@ -41,14 +59,16 @@ export default async function ManagePage({
   } else if (tab === "details") {
     roomDetails = await getRoomDetails();
   } else if (tab === "invoice") {
-    const [invRecords, invRooms, invTenants] = await Promise.all([
+    const [invRecords, invRooms, invTenants, invSettings] = await Promise.all([
       getMonthRecordsReadOnly(year, month),
       listRooms(false),
       getTenants(),
+      getInvoiceSettings(),
     ]);
     records = invRecords;
     invoiceRooms = invRooms;
     invoiceTenants = invTenants.map((r) => r.tenant);
+    invoiceSettings = invSettings;
   }
 
   const currentTabInfo = MANAGE_TABS.find((t) => t.key === tab);
@@ -87,8 +107,14 @@ export default async function ManagePage({
 
       {tab === "details" && roomDetails && <RoomDetailsClient initialRooms={roomDetails} />}
 
-      {tab === "invoice" && records && invoiceRooms && invoiceTenants && (
-        <InvoiceClient rooms={invoiceRooms} records={records} tenants={invoiceTenants} monthLabel={monthLabel} />
+      {tab === "invoice" && records && invoiceRooms && invoiceTenants && invoiceSettings && (
+        <InvoiceClient
+          rooms={invoiceRooms}
+          records={records}
+          tenants={invoiceTenants}
+          monthLabel={monthLabel}
+          initialSettings={invoiceSettings}
+        />
       )}
     </div>
   );
