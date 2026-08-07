@@ -31,6 +31,20 @@ export interface RoomWithItems extends Room {
   items: RoomItem[];
 }
 
+export interface Tenant {
+  id: number;
+  room_id: number;
+  first_name: string | null;
+  last_name: string | null;
+  nickname: string | null;
+  phone: string | null;
+  address: string | null;
+}
+
+export interface RoomWithTenant extends Room {
+  tenant: Tenant;
+}
+
 export interface MonthlyRecord {
   id: number;
   room_id: number;

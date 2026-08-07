@@ -1,7 +1,17 @@
 import { createClient, type Client, type Row } from "@libsql/client";
 import fs from "fs";
 import path from "path";
-import type { MonthlyExpense, MonthlyRecord, PaymentStatus, Room, RoomItem, RoomRecord, RoomWithItems } from "./types";
+import type {
+  MonthlyExpense,
+  MonthlyRecord,
+  PaymentStatus,
+  Room,
+  RoomItem,
+  RoomRecord,
+  RoomWithItems,
+  Tenant,
+  RoomWithTenant,
+} from "./types";
 
 const TURSO_URL = process.env.TURSO_DATABASE_URL;
 const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), "data", "dorm.db");
@@ -51,6 +61,15 @@ async function init(): Promise<void> {
         quantity INTEGER NOT NULL DEFAULT 1,
         note TEXT,
         sort_order INTEGER NOT NULL DEFAULT 0
+      )`,
+      `CREATE TABLE IF NOT EXISTS tenants (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        room_id INTEGER NOT NULL UNIQUE REFERENCES rooms(id) ON DELETE CASCADE,
+        first_name TEXT,
+        last_name TEXT,
+        nickname TEXT,
+        phone TEXT,
+        address TEXT
       )`,
       `CREATE TABLE IF NOT EXISTS monthly_records (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -441,6 +460,52 @@ export async function updateRoomItem(id: number, patch: Partial<RoomItem>): Prom
 export async function deleteRoomItem(id: number): Promise<void> {
   await ready();
   await client.execute({ sql: "DELETE FROM room_items WHERE id = ?", args: [id] });
+}
+
+// ---------- Tenants ----------
+
+export async function getTenants(): Promise<RoomWithTenant[]> {
+  await ready();
+  const roomsResult = await client.execute("SELECT * FROM rooms WHERE active = 1 ORDER BY sort_order ASC");
+  const rooms = rowsToObjects<Room>(roomsResult);
+
+  const existingResult = await client.execute("SELECT room_id FROM tenants");
+  const existingIds = new Set(existingResult.rows.map((r) => Number(r.room_id)));
+  const missing = rooms.filter((r) => !existingIds.has(r.id));
+  if (missing.length > 0) {
+    await client.batch(
+      missing.map((r) => ({ sql: "INSERT OR IGNORE INTO tenants (room_id) VALUES (?)", args: [r.id] })),
+      "write"
+    );
+  }
+
+  const tenantsResult = await client.execute("SELECT * FROM tenants");
+  const tenants = rowsToObjects<Tenant>(tenantsResult);
+  const byRoomId = new Map(tenants.map((t) => [t.room_id, t]));
+
+  return rooms.map((r) => ({ ...r, tenant: byRoomId.get(r.id) as Tenant }));
+}
+
+export async function updateTenant(id: number, patch: Partial<Tenant>): Promise<Tenant> {
+  await ready();
+  const currentResult = await client.execute({ sql: "SELECT * FROM tenants WHERE id = ?", args: [id] });
+  if (currentResult.rows.length === 0) throw new Error("Tenant not found");
+  const current = rowToObject<Tenant>(currentResult.rows[0], currentResult.columns);
+  const next: Tenant = { ...current, ...patch, id };
+  await client.execute({
+    sql: `UPDATE tenants SET first_name=@first_name, last_name=@last_name, nickname=@nickname,
+          phone=@phone, address=@address WHERE id=@id`,
+    args: {
+      id: next.id,
+      first_name: next.first_name,
+      last_name: next.last_name,
+      nickname: next.nickname,
+      phone: next.phone,
+      address: next.address,
+    },
+  });
+  const result = await client.execute({ sql: "SELECT * FROM tenants WHERE id = ?", args: [id] });
+  return rowToObject<Tenant>(result.rows[0], result.columns);
 }
 
 export type { PaymentStatus };

@@ -8,6 +8,7 @@ export const config = {
     "/api/records/:path*",
     "/api/expenses/:path*",
     "/api/room-items/:path*",
+    "/api/tenants/:path*",
   ],
 };
 

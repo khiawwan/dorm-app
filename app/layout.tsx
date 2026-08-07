@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Prompt } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
@@ -20,7 +21,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="th" className={prompt.variable}>
       <body>
         <div className="flex min-h-screen">
-          <Sidebar />
+          <Suspense fallback={<div className="w-16 shrink-0 bg-brand-600 md:w-60" />}>
+            <Sidebar />
+          </Suspense>
           <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">
             <div className="mx-auto max-w-6xl">{children}</div>
           </main>
