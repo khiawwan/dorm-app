@@ -1,7 +1,15 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Zap, Droplets, Receipt, Wallet, PiggyBank, TableProperties, History } from "lucide-react";
+import {
+  Zap,
+  Droplets,
+  Receipt,
+  Wallet,
+  PiggyBank,
+  TableProperties,
+  History,
+} from "lucide-react";
 import { baht } from "@/lib/format";
 import {
   elecCost,
@@ -15,7 +23,7 @@ import {
   waterUnits,
 } from "@/lib/types";
 
-type SaveState = "idle" | "saving" | "saved";
+type SaveState = "idle" | "saving" | "saved" | "error";
 
 function useDebouncedSave() {
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -41,6 +49,13 @@ export default function ManageClient({
   const [records, setRecords] = useState<RoomRecord[]>(initialRecords);
   const [expense, setExpense] = useState<MonthlyExpense>(initialExpense);
   const [saveState, setSaveState] = useState<Record<string, SaveState>>({});
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const filteredRecords = records.filter(
+    (r) =>
+      r.room_code.toLowerCase().includes(query.toLowerCase()) &&
+      (!statusFilter || r.payment_status === statusFilter),
+  );
   const [bulkRate, setBulkRate] = useState({ elec: 7, water: 22 });
   const [applyingLastMonth, setApplyingLastMonth] = useState(false);
   const debounced = useDebouncedSave();
@@ -67,7 +82,6 @@ export default function ManageClient({
   }
   function markSaved(key: string) {
     setSaveState((s) => ({ ...s, [key]: "saved" }));
-    setTimeout(() => setSaveState((s) => ({ ...s, [key]: "idle" })), 1500);
   }
 
   function saveRecord(record: RoomRecord) {
@@ -89,13 +103,22 @@ export default function ManageClient({
         note: record.note,
       }),
     })
-      .then(() => markSaved(key))
-      .catch(() => setSaveState((s) => ({ ...s, [key]: "idle" })));
+      .then((response) => {
+        if (!response.ok) throw new Error("Save failed");
+        markSaved(key);
+      })
+      .catch(() => setSaveState((s) => ({ ...s, [key]: "error" })));
   }
 
-  function updateRecordField<K extends keyof RoomRecord>(id: number, field: K, value: RoomRecord[K]) {
+  function updateRecordField<K extends keyof RoomRecord>(
+    id: number,
+    field: K,
+    value: RoomRecord[K],
+  ) {
     setRecords((prev) => {
-      const next = prev.map((r) => (r.id === id ? { ...r, [field]: value } : r));
+      const next = prev.map((r) =>
+        r.id === id ? { ...r, [field]: value } : r,
+      );
       const updated = next.find((r) => r.id === id);
       if (updated) debounced(`record-${id}`, () => saveRecord(updated));
       return next;
@@ -104,8 +127,14 @@ export default function ManageClient({
 
   function applyRatesToAll() {
     setRecords((prev) => {
-      const next = prev.map((r) => ({ ...r, elec_rate: bulkRate.elec, water_rate: bulkRate.water }));
-      next.forEach((r) => debounced(`record-${r.id}`, () => saveRecord(r), 100));
+      const next = prev.map((r) => ({
+        ...r,
+        elec_rate: bulkRate.elec,
+        water_rate: bulkRate.water,
+      }));
+      next.forEach((r) =>
+        debounced(`record-${r.id}`, () => saveRecord(r), 100),
+      );
       return next;
     });
   }
@@ -119,8 +148,10 @@ export default function ManageClient({
     }
     setApplyingLastMonth(true);
     try {
-      const res = await fetch(`/api/records?year=${prevYear}&month=${prevMonth}`);
-      if (!res.ok) return;
+      const res = await fetch(
+        `/api/records?year=${prevYear}&month=${prevMonth}`,
+      );
+      if (!res.ok) throw new Error("Load failed");
       const prevRecords: RoomRecord[] = await res.json();
       if (prevRecords.length === 0) {
         alert("ไม่พบข้อมูลของเดือนก่อนหน้า");
@@ -142,6 +173,8 @@ export default function ManageClient({
         });
         return next;
       });
+    } catch {
+      alert("โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่");
     } finally {
       setApplyingLastMonth(false);
     }
@@ -165,11 +198,17 @@ export default function ManageClient({
         other_note: next.other_note,
       }),
     })
-      .then(() => markSaved(key))
-      .catch(() => setSaveState((s) => ({ ...s, [key]: "idle" })));
+      .then((response) => {
+        if (!response.ok) throw new Error("Save failed");
+        markSaved(key);
+      })
+      .catch(() => setSaveState((s) => ({ ...s, [key]: "error" })));
   }
 
-  function updateExpenseField<K extends keyof MonthlyExpense>(field: K, value: MonthlyExpense[K]) {
+  function updateExpenseField<K extends keyof MonthlyExpense>(
+    field: K,
+    value: MonthlyExpense[K],
+  ) {
     setExpense((prev) => {
       const next = { ...prev, [field]: value };
       debounced("expense", () => saveExpense(next));
@@ -185,12 +224,17 @@ export default function ManageClient({
       <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl2 border border-brand-100 bg-white p-4 shadow-soft">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-800">
-            <TableProperties className="h-5 w-5 text-brand-600" strokeWidth={2.25} />
+            <TableProperties
+              className="h-5 w-5 text-brand-600"
+              strokeWidth={2.25}
+            />
             ตารางบันทึกค่าเช่า เดือน{monthLabel}
           </h2>
-          <p className="text-xs text-gray-500">แก้ไขค่าในตารางแล้วระบบจะบันทึกให้อัตโนมัติ</p>
+          <p className="text-xs text-gray-500">
+            แก้ไขค่าในตารางแล้วระบบจะบันทึกให้อัตโนมัติ
+          </p>
         </div>
-        <div className="flex items-end gap-2">
+        <div className="flex flex-wrap items-end gap-2">
           <button
             onClick={applyLastMonth}
             disabled={applyingLastMonth}
@@ -206,7 +250,9 @@ export default function ManageClient({
             <input
               type="number"
               value={bulkRate.elec}
-              onChange={(e) => setBulkRate((s) => ({ ...s, elec: Number(e.target.value) }))}
+              onChange={(e) =>
+                setBulkRate((s) => ({ ...s, elec: Number(e.target.value) }))
+              }
               className="mt-1 block w-20 rounded-lg border border-brand-100 px-2 py-1 text-right text-sm focus:border-brand-400 focus:outline-none"
             />
           </label>
@@ -217,7 +263,9 @@ export default function ManageClient({
             <input
               type="number"
               value={bulkRate.water}
-              onChange={(e) => setBulkRate((s) => ({ ...s, water: Number(e.target.value) }))}
+              onChange={(e) =>
+                setBulkRate((s) => ({ ...s, water: Number(e.target.value) }))
+              }
               className="mt-1 block w-20 rounded-lg border border-brand-100 px-2 py-1 text-right text-sm focus:border-brand-400 focus:outline-none"
             />
           </label>
@@ -230,17 +278,54 @@ export default function ManageClient({
         </div>
       </div>
 
+      <div className="flex flex-wrap gap-3">
+        <input
+          aria-label="ค้นหาห้อง"
+          placeholder="ค้นหาห้อง…"
+          className="rounded-xl border border-slate-200 px-4 py-2 text-sm"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <select
+          aria-label="กรองสถานะ"
+          className="rounded-xl border border-slate-200 px-4 py-2 text-sm"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+        >
+          <option value="">ทุกสถานะ</option>
+          {PAYMENT_STATUS_OPTIONS.map((s) => (
+            <option key={s}>{s}</option>
+          ))}
+        </select>
+        <span className="self-center text-xs text-slate-500">
+          แสดง {filteredRecords.length} / {records.length} ห้อง ·
+          ยอดรวมด้านล่างรวมทุกห้อง
+        </span>
+      </div>
+      {Object.values(saveState).includes("error") && (
+        <p
+          role="alert"
+          className="rounded-xl bg-red-50 p-4 text-sm text-red-700"
+        >
+          บันทึกบางรายการไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อ
+          แล้วกดลองอีกครั้งที่รายการนั้น
+        </p>
+      )}
       <div className="overflow-x-auto rounded-xl2 border border-brand-100 bg-white shadow-soft">
         <table className="w-full min-w-[1400px] text-sm">
           <thead className="bg-brand-50 text-xs text-brand-800">
             <tr>
               <th className="px-2 py-2.5">ห้อง</th>
               <th className="px-2 py-2.5">ค่าเช่า</th>
-              <th className="px-2 py-2.5" colSpan={2}>มิเตอร์ไฟ (ก่อน/หลัง)</th>
+              <th className="px-2 py-2.5" colSpan={2}>
+                มิเตอร์ไฟ (ก่อน/หลัง)
+              </th>
               <th className="px-2 py-2.5">หน่วยไฟ</th>
               <th className="px-2 py-2.5">฿/หน่วย</th>
               <th className="px-2 py-2.5">ค่าไฟ</th>
-              <th className="px-2 py-2.5" colSpan={2}>มิเตอร์น้ำ (ก่อน/หลัง)</th>
+              <th className="px-2 py-2.5" colSpan={2}>
+                มิเตอร์น้ำ (ก่อน/หลัง)
+              </th>
               <th className="px-2 py-2.5">หน่วยน้ำ</th>
               <th className="px-2 py-2.5">฿/หน่วย</th>
               <th className="px-2 py-2.5">ค่าน้ำ</th>
@@ -252,7 +337,7 @@ export default function ManageClient({
             </tr>
           </thead>
           <tbody>
-            {records.map((r) => {
+            {filteredRecords.map((r) => {
               const key = `record-${r.id}`;
               const state = saveState[key] || "idle";
               return (
@@ -260,13 +345,17 @@ export default function ManageClient({
                   key={r.id}
                   className={`border-t border-brand-50 ${r.is_owner ? "bg-violet-50" : "hover:bg-brand-50/50"}`}
                 >
-                  <td className="px-2 py-1 text-center font-bold text-gray-700">{r.room_code}</td>
+                  <td className="px-2 py-1 text-center font-bold text-gray-700">
+                    {r.room_code}
+                  </td>
                   <td className="px-2 py-1">
                     <input
                       type="number"
                       className={inputCls}
                       value={r.rent}
-                      onChange={(e) => updateRecordField(r.id, "rent", Number(e.target.value))}
+                      onChange={(e) =>
+                        updateRecordField(r.id, "rent", Number(e.target.value))
+                      }
                     />
                   </td>
                   <td className="px-1 py-1">
@@ -274,7 +363,13 @@ export default function ManageClient({
                       type="number"
                       className={inputCls}
                       value={r.elec_before}
-                      onChange={(e) => updateRecordField(r.id, "elec_before", Number(e.target.value))}
+                      onChange={(e) =>
+                        updateRecordField(
+                          r.id,
+                          "elec_before",
+                          Number(e.target.value),
+                        )
+                      }
                     />
                   </td>
                   <td className="px-1 py-1">
@@ -282,25 +377,47 @@ export default function ManageClient({
                       type="number"
                       className={inputCls}
                       value={r.elec_after}
-                      onChange={(e) => updateRecordField(r.id, "elec_after", Number(e.target.value))}
+                      onChange={(e) =>
+                        updateRecordField(
+                          r.id,
+                          "elec_after",
+                          Number(e.target.value),
+                        )
+                      }
                     />
                   </td>
-                  <td className="px-2 py-1 text-right text-gray-500">{elecUnits(r)}</td>
+                  <td className="px-2 py-1 text-right text-gray-500">
+                    {elecUnits(r)}
+                  </td>
                   <td className="px-1 py-1">
                     <input
                       type="number"
                       className={inputCls}
                       value={r.elec_rate}
-                      onChange={(e) => updateRecordField(r.id, "elec_rate", Number(e.target.value))}
+                      onChange={(e) =>
+                        updateRecordField(
+                          r.id,
+                          "elec_rate",
+                          Number(e.target.value),
+                        )
+                      }
                     />
                   </td>
-                  <td className="px-2 py-1 text-right font-medium text-amber-600">{baht(elecCost(r))}</td>
+                  <td className="px-2 py-1 text-right font-medium text-amber-600">
+                    {baht(elecCost(r))}
+                  </td>
                   <td className="px-1 py-1">
                     <input
                       type="number"
                       className={inputCls}
                       value={r.water_before}
-                      onChange={(e) => updateRecordField(r.id, "water_before", Number(e.target.value))}
+                      onChange={(e) =>
+                        updateRecordField(
+                          r.id,
+                          "water_before",
+                          Number(e.target.value),
+                        )
+                      }
                     />
                   </td>
                   <td className="px-1 py-1">
@@ -308,19 +425,35 @@ export default function ManageClient({
                       type="number"
                       className={inputCls}
                       value={r.water_after}
-                      onChange={(e) => updateRecordField(r.id, "water_after", Number(e.target.value))}
+                      onChange={(e) =>
+                        updateRecordField(
+                          r.id,
+                          "water_after",
+                          Number(e.target.value),
+                        )
+                      }
                     />
                   </td>
-                  <td className="px-2 py-1 text-right text-gray-500">{waterUnits(r)}</td>
+                  <td className="px-2 py-1 text-right text-gray-500">
+                    {waterUnits(r)}
+                  </td>
                   <td className="px-1 py-1">
                     <input
                       type="number"
                       className={inputCls}
                       value={r.water_rate}
-                      onChange={(e) => updateRecordField(r.id, "water_rate", Number(e.target.value))}
+                      onChange={(e) =>
+                        updateRecordField(
+                          r.id,
+                          "water_rate",
+                          Number(e.target.value),
+                        )
+                      }
                     />
                   </td>
-                  <td className="px-2 py-1 text-right font-medium text-sky-600">{baht(waterCost(r))}</td>
+                  <td className="px-2 py-1 text-right font-medium text-sky-600">
+                    {baht(waterCost(r))}
+                  </td>
                   <td className="px-2 py-1 text-right text-base font-bold text-brand-700">
                     {baht(recordTotal(r))}
                   </td>
@@ -329,7 +462,11 @@ export default function ManageClient({
                       className="w-full rounded-lg border border-brand-100 bg-white px-1 py-1 text-xs focus:border-brand-400 focus:outline-none"
                       value={r.payment_status}
                       onChange={(e) =>
-                        updateRecordField(r.id, "payment_status", e.target.value as RoomRecord["payment_status"])
+                        updateRecordField(
+                          r.id,
+                          "payment_status",
+                          e.target.value as RoomRecord["payment_status"],
+                        )
                       }
                     >
                       {PAYMENT_STATUS_OPTIONS.map((s) => (
@@ -344,7 +481,13 @@ export default function ManageClient({
                       type="date"
                       className="w-full rounded-lg border border-brand-100 bg-white px-1 py-1 text-xs focus:border-brand-400 focus:outline-none"
                       value={r.payment_date || ""}
-                      onChange={(e) => updateRecordField(r.id, "payment_date", e.target.value || null)}
+                      onChange={(e) =>
+                        updateRecordField(
+                          r.id,
+                          "payment_date",
+                          e.target.value || null,
+                        )
+                      }
                     />
                   </td>
                   <td className="px-1 py-1">
@@ -352,12 +495,26 @@ export default function ManageClient({
                       type="text"
                       className="w-full min-w-[100px] rounded-lg border border-brand-100 bg-white px-2 py-1 text-xs focus:border-brand-400 focus:outline-none"
                       value={r.note || ""}
-                      onChange={(e) => updateRecordField(r.id, "note", e.target.value)}
+                      onChange={(e) =>
+                        updateRecordField(r.id, "note", e.target.value)
+                      }
                     />
                   </td>
                   <td className="px-2 py-1 text-center text-xs">
-                    {state === "saving" && <span className="text-amber-500">กำลังบันทึก…</span>}
-                    {state === "saved" && <span className="text-brand-600">✓ บันทึกแล้ว</span>}
+                    {state === "saving" && (
+                      <span className="text-amber-500">กำลังบันทึก…</span>
+                    )}
+                    {state === "error" && (
+                      <button
+                        className="text-red-700 underline"
+                        onClick={() => saveRecord(r)}
+                      >
+                        ลองบันทึกอีกครั้ง
+                      </button>
+                    )}
+                    {state === "saved" && (
+                      <span className="text-brand-600">✓ บันทึกแล้ว</span>
+                    )}
                   </td>
                 </tr>
               );
@@ -367,11 +524,17 @@ export default function ManageClient({
             <tr className="border-t border-brand-100">
               <td className="px-2 py-2">รวม</td>
               <td className="px-2 py-2 text-right">{baht(totals.rent)}</td>
-              <td colSpan={3}></td>
-              <td className="px-2 py-2 text-right text-amber-600">{baht(totals.elec)}</td>
-              <td colSpan={3}></td>
-              <td className="px-2 py-2 text-right text-sky-600">{baht(totals.water)}</td>
-              <td className="px-2 py-2 text-right text-brand-700">{baht(totals.total)}</td>
+              <td colSpan={4}></td>
+              <td className="px-2 py-2 text-right text-amber-600">
+                {baht(totals.elec)}
+              </td>
+              <td colSpan={4}></td>
+              <td className="px-2 py-2 text-right text-sky-600">
+                {baht(totals.water)}
+              </td>
+              <td className="px-2 py-2 text-right text-brand-700">
+                {baht(totals.total)}
+              </td>
               <td colSpan={4}></td>
             </tr>
           </tfoot>
@@ -384,11 +547,27 @@ export default function ManageClient({
             <Receipt className="h-5 w-5 text-accent-500" strokeWidth={2.25} />
             ค่าใช้จ่ายประจำเดือน{monthLabel}
           </h2>
-          {saveState["expense"] === "saving" && <span className="text-xs text-amber-500">กำลังบันทึก…</span>}
-          {saveState["expense"] === "saved" && <span className="text-xs text-brand-600">✓ บันทึกแล้ว</span>}
+          {saveState["expense"] === "error" && (
+            <button
+              className="text-xs text-red-700 underline"
+              onClick={() => saveExpense(expense)}
+            >
+              ลองบันทึกอีกครั้ง
+            </button>
+          )}
+          {saveState["expense"] === "saving" && (
+            <span className="text-xs text-amber-500">กำลังบันทึก…</span>
+          )}
+          {saveState["expense"] === "saved" && (
+            <span className="text-xs text-brand-600">✓ บันทึกแล้ว</span>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <ExpenseField label="ค่าน้ำ" value={expense.water_bill} onChange={(v) => updateExpenseField("water_bill", v)} />
+          <ExpenseField
+            label="ค่าน้ำ"
+            value={expense.water_bill}
+            onChange={(v) => updateExpenseField("water_bill", v)}
+          />
           <ExpenseField
             label="ค่าไฟฟ้า"
             value={expense.electric_bill}
@@ -409,7 +588,11 @@ export default function ManageClient({
             value={expense.maintenance}
             onChange={(v) => updateExpenseField("maintenance", v)}
           />
-          <ExpenseField label="ให้พ่อ" value={expense.to_father} onChange={(v) => updateExpenseField("to_father", v)} />
+          <ExpenseField
+            label="ให้พ่อ"
+            value={expense.to_father}
+            onChange={(v) => updateExpenseField("to_father", v)}
+          />
           <ExpenseField
             label="ให้แม่+พี่"
             value={expense.to_mother_sibling}
@@ -422,7 +605,9 @@ export default function ManageClient({
           />
         </div>
         <div className="mt-3">
-          <label className="text-xs text-gray-500">หมายเหตุค่าใช้จ่ายอื่นๆ</label>
+          <label className="text-xs text-gray-500">
+            หมายเหตุค่าใช้จ่ายอื่นๆ
+          </label>
           <input
             type="text"
             className="mt-1 block w-full rounded-lg border border-brand-100 px-2 py-1.5 text-sm focus:border-brand-400 focus:outline-none"
@@ -438,7 +623,9 @@ export default function ManageClient({
             </span>
             <div>
               <div className="text-xs text-gray-500">รวมรายรับ</div>
-              <div className="text-xl font-bold text-brand-700">{baht(totals.total)} ฿</div>
+              <div className="text-xl font-bold text-brand-700">
+                {baht(totals.total)} ฿
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-3 rounded-xl2 bg-accent-50 p-3">
@@ -447,20 +634,28 @@ export default function ManageClient({
             </span>
             <div>
               <div className="text-xs text-gray-500">รวมค่าใช้จ่าย</div>
-              <div className="text-xl font-bold text-accent-600">{baht(totalExpense)} ฿</div>
+              <div className="text-xl font-bold text-accent-600">
+                {baht(totalExpense)} ฿
+              </div>
             </div>
           </div>
-          <div className={`flex items-center gap-3 rounded-xl2 p-3 ${remaining >= 0 ? "bg-sky-50" : "bg-accent-50"}`}>
+          <div
+            className={`flex items-center gap-3 rounded-xl2 p-3 ${remaining >= 0 ? "bg-sky-50" : "bg-accent-50"}`}
+          >
             <span
               className={`flex h-9 w-9 items-center justify-center rounded-full ${
-                remaining >= 0 ? "bg-sky-200/70 text-sky-700" : "bg-accent-200/70 text-accent-600"
+                remaining >= 0
+                  ? "bg-sky-200/70 text-sky-700"
+                  : "bg-accent-200/70 text-accent-600"
               }`}
             >
               <PiggyBank className="h-4 w-4" strokeWidth={2.25} />
             </span>
             <div>
               <div className="text-xs text-gray-500">คงเหลือ</div>
-              <div className={`text-xl font-bold ${remaining >= 0 ? "text-sky-700" : "text-accent-600"}`}>
+              <div
+                className={`text-xl font-bold ${remaining >= 0 ? "text-sky-700" : "text-accent-600"}`}
+              >
                 {baht(remaining)} ฿
               </div>
             </div>

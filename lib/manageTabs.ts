@@ -1,4 +1,12 @@
-import { Users, NotebookPen, Settings2, Images, Receipt, type LucideIcon } from "lucide-react";
+import {
+  BarChart3,
+  Users,
+  NotebookPen,
+  Settings2,
+  Images,
+  Receipt,
+  type LucideIcon,
+} from "lucide-react";
 
 export interface ManageTab {
   key: string;
@@ -7,6 +15,7 @@ export interface ManageTab {
 }
 
 export const MANAGE_TABS: ManageTab[] = [
+  { key: "reports", label: "รายงานและยอดค้าง", icon: BarChart3 },
   { key: "tenants", label: "ข้อมูลผู้เช่า", icon: Users },
   { key: "records", label: "บันทึกรายเดือน", icon: NotebookPen },
   { key: "rooms", label: "สถานะห้องพัก", icon: Settings2 },

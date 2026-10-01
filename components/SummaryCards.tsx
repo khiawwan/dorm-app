@@ -6,7 +6,7 @@ export default function SummaryCards({ summary }: { summary: MonthSummary }) {
   const positive = summary.remaining >= 0;
   const cards = [
     {
-      label: "รายรับรวม",
+      label: "ยอดรวมตามรายการ",
       value: summary.total_income,
       icon: Wallet,
       text: "text-brand-700",
@@ -22,12 +22,14 @@ export default function SummaryCards({ summary }: { summary: MonthSummary }) {
       iconBg: "bg-accent-200/70 text-accent-600",
     },
     {
-      label: "คงเหลือ",
+      label: "ส่วนต่างรายรับ–รายจ่าย",
       value: summary.remaining,
       icon: PiggyBank,
       text: positive ? "text-sky-700" : "text-accent-600",
       bg: positive ? "bg-sky-50" : "bg-accent-50",
-      iconBg: positive ? "bg-sky-200/70 text-sky-700" : "bg-accent-200/70 text-accent-600",
+      iconBg: positive
+        ? "bg-sky-200/70 text-sky-700"
+        : "bg-accent-200/70 text-accent-600",
     },
     {
       label: `ห้องมีผู้เช่า (${summary.occupied_rooms})`,
@@ -45,17 +47,28 @@ export default function SummaryCards({ summary }: { summary: MonthSummary }) {
       {cards.map((c) => {
         const Icon = c.icon;
         return (
-          <div key={c.label} className={`rounded-xl2 border border-white/60 p-4 shadow-soft ${c.bg}`}>
+          <div
+            key={c.label}
+            className={`rounded-xl2 border border-slate-200/80 bg-white p-5 shadow-soft`}
+          >
             <div className="flex items-center gap-2">
-              <span className={`flex h-8 w-8 items-center justify-center rounded-full ${c.iconBg}`}>
+              <span
+                className={`flex h-8 w-8 items-center justify-center rounded-full ${c.iconBg}`}
+              >
                 <Icon className="h-4 w-4" strokeWidth={2.25} />
               </span>
               <div className="text-xs font-medium text-gray-500">{c.label}</div>
             </div>
             {c.value !== null ? (
-              <div className={`mt-2 text-2xl font-bold ${c.text}`}>{baht(c.value)} ฿</div>
+              <div
+                className={`mt-2 text-xl font-semibold lg:text-2xl ${c.text}`}
+              >
+                {baht(c.value)} ฿
+              </div>
             ) : (
-              <div className={`mt-2 text-sm font-semibold ${c.text}`}>{c.sub}</div>
+              <div className={`mt-2 text-sm font-semibold ${c.text}`}>
+                {c.sub}
+              </div>
             )}
           </div>
         );

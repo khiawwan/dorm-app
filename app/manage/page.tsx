@@ -26,6 +26,7 @@ import RoomSettingsClient from "@/components/RoomSettingsClient";
 import RoomDetailsClient from "@/components/RoomDetailsClient";
 import TenantClient from "@/components/TenantClient";
 import InvoiceClient from "@/components/InvoiceClient";
+import ReportsClient from "@/components/ReportsClient";
 import LogoutButton from "@/components/LogoutButton";
 
 export const dynamic = "force-dynamic";
@@ -36,9 +37,21 @@ export default async function ManagePage({
   searchParams: Promise<{ year?: string; month?: string; tab?: string }>;
 }) {
   const sp = await searchParams;
-  const year = Number(sp.year) || currentBEYear();
-  const month = Number(sp.month) || currentMonth();
-  const tab = MANAGE_TABS.some((t) => t.key === sp.tab) ? (sp.tab as string) : DEFAULT_MANAGE_TAB;
+  const year =
+    Number.isInteger(Number(sp.year)) &&
+    Number(sp.year) >= 2500 &&
+    Number(sp.year) <= 2700
+      ? Number(sp.year)
+      : currentBEYear();
+  const month =
+    Number.isInteger(Number(sp.month)) &&
+    Number(sp.month) >= 1 &&
+    Number(sp.month) <= 12
+      ? Number(sp.month)
+      : currentMonth();
+  const tab = MANAGE_TABS.some((t) => t.key === sp.tab)
+    ? (sp.tab as string)
+    : DEFAULT_MANAGE_TAB;
   const monthLabel = `${THAI_MONTHS[month - 1]} ${year}`;
 
   let tenants: RoomWithTenant[] | null = null;
@@ -50,10 +63,15 @@ export default async function ManagePage({
   let invoiceTenants: Tenant[] | null = null;
   let invoiceSettings: InvoiceSettings | null = null;
 
-  if (tab === "tenants") {
+  if (tab === "reports") {
+    records = await getMonthRecordsReadOnly(year, month);
+  } else if (tab === "tenants") {
     tenants = await getTenants();
   } else if (tab === "records") {
-    [records, expense] = await Promise.all([getMonthRecords(year, month), getMonthExpense(year, month)]);
+    [records, expense] = await Promise.all([
+      getMonthRecords(year, month),
+      getMonthExpense(year, month),
+    ]);
   } else if (tab === "rooms") {
     rooms = await listRooms(true);
   } else if (tab === "details") {
@@ -81,20 +99,36 @@ export default async function ManagePage({
             <ClipboardList className="h-5 w-5" strokeWidth={2.25} />
           </span>
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">จัดการข้อมูลหอพัก</h1>
-            <p className="text-sm text-gray-500">{currentTabInfo?.label || "สำหรับเจ้าของหอพัก"}</p>
+            <h1 className="text-2xl font-bold text-gray-800">
+              จัดการข้อมูลหอพัก
+            </h1>
+            <p className="text-sm text-gray-500">
+              {currentTabInfo?.label || "สำหรับเจ้าของหอพัก"}
+            </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          {(tab === "records" || tab === "invoice") && <YearMonthPicker year={year} month={month} />}
+        <div className="flex w-full flex-wrap items-center justify-between gap-3 sm:w-auto">
+          {(tab === "records" || tab === "invoice" || tab === "reports") && (
+            <YearMonthPicker year={year} month={month} />
+          )}
           <LogoutButton />
         </div>
       </div>
+
+      {tab === "reports" && records && (
+        <ReportsClient
+          key={`${year}-${month}`}
+          records={records}
+          year={year}
+          month={month}
+        />
+      )}
 
       {tab === "tenants" && tenants && <TenantClient initialRooms={tenants} />}
 
       {tab === "records" && records && expense && (
         <ManageClient
+          key={`${year}-${month}`}
           year={year}
           month={month}
           monthLabel={monthLabel}
@@ -105,17 +139,23 @@ export default async function ManagePage({
 
       {tab === "rooms" && rooms && <RoomSettingsClient initialRooms={rooms} />}
 
-      {tab === "details" && roomDetails && <RoomDetailsClient initialRooms={roomDetails} />}
-
-      {tab === "invoice" && records && invoiceRooms && invoiceTenants && invoiceSettings && (
-        <InvoiceClient
-          rooms={invoiceRooms}
-          records={records}
-          tenants={invoiceTenants}
-          monthLabel={monthLabel}
-          initialSettings={invoiceSettings}
-        />
+      {tab === "details" && roomDetails && (
+        <RoomDetailsClient initialRooms={roomDetails} />
       )}
+
+      {tab === "invoice" &&
+        records &&
+        invoiceRooms &&
+        invoiceTenants &&
+        invoiceSettings && (
+          <InvoiceClient
+            rooms={invoiceRooms}
+            records={records}
+            tenants={invoiceTenants}
+            monthLabel={monthLabel}
+            initialSettings={invoiceSettings}
+          />
+        )}
     </div>
   );
 }

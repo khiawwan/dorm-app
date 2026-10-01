@@ -3,11 +3,12 @@
 @tailwind utilities;
 
 html {
-  font-family: var(--font-prompt), "Noto Sans Thai", ui-sans-serif, system-ui, sans-serif;
+  font-family:
+    var(--font-prompt), "Noto Sans Thai", ui-sans-serif, system-ui, sans-serif;
 }
 
 body {
-  background: linear-gradient(180deg, #f0fdfa 0%, #fdf4f5 100%) fixed;
+  background: #f5f7f8;
   color: #1e293b;
   min-height: 100vh;
 }
@@ -47,5 +48,66 @@ input[type="number"] {
   }
   main {
     padding: 0 !important;
+  }
+}
+
+@layer components {
+  .surface {
+    @apply rounded-2xl border border-slate-200/80 bg-white shadow-soft;
+  }
+  .action-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50;
+  }
+  .dashboard-hero {
+    @apply flex flex-wrap items-center justify-between gap-5 rounded-3xl p-6 text-white sm:p-8;
+    background:
+      radial-gradient(ellipse at top right, #206957, transparent 65%), #153b34;
+  }
+}
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+:focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: 3px;
+}
+th {
+  font-weight: 500;
+}
+input,
+select,
+textarea {
+  accent-color: #0f766e;
+}
+::selection {
+  background: #b8e8d7;
+  color: #102d2a;
+}
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition: none !important;
+    animation: none !important;
+  }
+}
+@media print {
+  body {
+    background: white;
   }
 }
